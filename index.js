@@ -20,7 +20,7 @@ class MFRC522 {
     return this;
   }
 
-  setResetPin(pin = 22) {
+  async setResetPin(pin = 22) {
     if (!pin) {
       throw new Error(
         "Invalid parameter! reset pin parameter is invalid or not provided!"
@@ -29,7 +29,7 @@ class MFRC522 {
     this.reset_pin = pin;
     // Hold RESET pin low for 50ms to hard reset the reader
     rpio.open(this.reset_pin, rpio.OUTPUT, rpio.LOW);
-    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 50);
+    await new Promise((resolve, reject) => setTimeout(() => resolve(), 50));
     rpio.write(this.reset_pin, rpio.HIGH);
     return this;
   }
@@ -167,7 +167,7 @@ class MFRC522 {
    * @returns {{status: boolean, data: Array, bitSize: number}}
    * @memberof MFRC522
    */
-  toCard(command, bitsToSend) {
+  async toCard(command, bitsToSend) {
     let data = [];
     let bitSize = 0;
     let status = ERROR;
@@ -199,7 +199,8 @@ class MFRC522 {
     let i = 250; //According to the clock frequency adjustment, operation M1 card maximum waiting time 25ms
     let n = 0;
     do {
-      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 250 - i);
+      // Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 250 - i);
+      await new Promise((resolve, reject) => setTimeout(() => resolve(), Math.max(1,250 - i)));
       n = this.readRegister(CMD.CommIrqReg);
       i--;
     } while (i != 0 && !(n & 0x01) && !(n & waitIRq));
@@ -270,11 +271,11 @@ class MFRC522 {
    * @returns {{status: *, bitSize: *}}
    * @memberof MFRC522
    */
-  findCard() {
+  async findCard() {
     if (isCycleEnded) {
       this.writeRegister(CMD.BitFramingReg, 0x07);
       const tagType = [CMD.PICC_REQIDL];
-      let response = this.toCard(CMD.PCD_TRANSCEIVE, tagType);
+      let response = await this.toCard(CMD.PCD_TRANSCEIVE, tagType);
       if (response.bitSize != 0x10) {
         response.status = ERROR;
       }
@@ -290,11 +291,11 @@ class MFRC522 {
    * @returns {{status: *, data: Array, bitSize: *}}
    * @memberof MFRC522
    */
-  getUid() {
+  async getUid() {
     this.alert();
     this.writeRegister(CMD.BitFramingReg, 0x00);
     const uid = [CMD.PICC_ANTICOLL, 0x20];
-    let response = this.toCard(CMD.PCD_TRANSCEIVE, uid);
+    let response = await this.toCard(CMD.PCD_TRANSCEIVE, uid);
     if (response.status) {
       let uidCheck = 0;
       for (let i = 0; i < 4; i++) {
@@ -343,13 +344,13 @@ class MFRC522 {
    * @returns
    * @memberof MFRC522
    */
-  selectCard(uid) {
+  async selectCard(uid) {
     let buffer = [CMD.PICC_SELECTTAG, 0x70];
     for (let i = 0; i < 5; i++) {
       buffer.push(uid[i]);
     }
     buffer = buffer.concat(this.calculateCRC(buffer));
-    let response = this.toCard(CMD.PCD_TRANSCEIVE, buffer);
+    let response = await this.toCard(CMD.PCD_TRANSCEIVE, buffer);
     let memoryCapacity = 0;
     if (response.status && response.bitSize == 0x18) {
       memoryCapacity = response.data[0];
@@ -367,7 +368,7 @@ class MFRC522 {
    * @returns {*}
    * @memberof MFRC522
    */
-  authenticate(address, key, uid) {
+  async authenticate(address, key, uid) {
     /* Password authentication mode (A or B)
      * 0x60 = Verify the A key are the first 6 bit
      * 0x61 = Verify the B key are the last 6 bit
@@ -383,7 +384,7 @@ class MFRC522 {
       buffer.push(uid[j]);
     }
     // Now we start the authentication itself
-    let response = this.toCard(CMD.PCD_AUTHENT, buffer);
+    let response = await this.toCard(CMD.PCD_AUTHENT, buffer);
     if (!(this.readRegister(CMD.Status2Reg) & 0x08)) {
       response.status = ERROR;
     }
@@ -406,10 +407,10 @@ class MFRC522 {
    * @returns
    * @memberof MFRC522
    */
-  getDataForBlock(address) {
+  async getDataForBlock(address) {
     let request = [CMD.PICC_READ, address];
     request = request.concat(this.calculateCRC(request));
-    let response = this.toCard(CMD.PCD_TRANSCEIVE, request);
+    let response = await this.toCard(CMD.PCD_TRANSCEIVE, request);
     if (!response.status) {
       console.log(
         "Error while reading! Status: " +
@@ -430,9 +431,9 @@ class MFRC522 {
    * @returns
    * @memberof MFRC522
    */
-  appendCRCtoBufferAndSendToCard(buffer) {
+  async appendCRCtoBufferAndSendToCard(buffer) {
     buffer = buffer.concat(this.calculateCRC(buffer));
-    let response = this.toCard(CMD.PCD_TRANSCEIVE, buffer);
+    let response = await this.toCard(CMD.PCD_TRANSCEIVE, buffer);
     if (
       !response.status ||
       response.bitSize != 4 ||
