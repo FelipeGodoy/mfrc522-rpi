@@ -202,7 +202,7 @@ class MFRC522 {
     let n = 0;
     do {
       // Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 250 - i);
-      await timeout(Math.max(1,250 - i));
+      await timeout(Math.max(20,250 - i));
       n = this.readRegister(CMD.CommIrqReg);
       i--;
     } while (i != 0 && !(n & 0x01) && !(n & waitIRq));
