@@ -22,7 +22,7 @@ class MFRC522 {
     return this;
   }
 
-  async setResetPin(pin = 22) {
+  async setResetPin(pin = 22, timeoutMS = 50) {
     if (!pin) {
       throw new Error(
         "Invalid parameter! reset pin parameter is invalid or not provided!"
@@ -31,7 +31,7 @@ class MFRC522 {
     this.reset_pin = pin;
     // Hold RESET pin low for 50ms to hard reset the reader
     rpio.open(this.reset_pin, rpio.OUTPUT, rpio.LOW);
-    await timeout(50);
+    await timeout(timeoutMS);
     rpio.write(this.reset_pin, rpio.HIGH);
     return this;
   }
